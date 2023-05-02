@@ -1,6 +1,7 @@
 import type { ActionArgs, V2_MetaFunction } from '@remix-run/node';
 import { redirect } from '@remix-run/node';
 import { Form } from '@remix-run/react';
+import { db } from '~/utils/db.server';
 
 export const meta: V2_MetaFunction = () => {
   return [{ title: 'Work Journal' }];
@@ -8,7 +9,21 @@ export const meta: V2_MetaFunction = () => {
 
 export async function action({ request }: ActionArgs) {
   const formData = await request.formData();
-  console.log(Object.fromEntries(formData));
+  const { date, type, text } = Object.fromEntries(formData);
+  if (
+    typeof date !== 'string' ||
+    typeof type !== 'string' ||
+    typeof text !== 'string'
+  ) {
+    throw new Response('Invalid form data', { status: 400 });
+  }
+  await db.entry.create({
+    data: {
+      date: new Date(date),
+      type: type,
+      text: text,
+    },
+  });
   return redirect('/');
 }
 
@@ -34,7 +49,7 @@ export default function Index() {
                 <input
                   className="mr-1 "
                   type="radio"
-                  name="category"
+                  name="type"
                   value="work"
                 />
                 Work
@@ -43,7 +58,7 @@ export default function Index() {
                 <input
                   className="mr-1 "
                   type="radio"
-                  name="category"
+                  name="type"
                   value="learning"
                 />
                 Learning
@@ -52,7 +67,7 @@ export default function Index() {
                 <input
                   className="mr-1 "
                   type="radio"
-                  name="category"
+                  name="type"
                   value="interesting-thing"
                 />
                 Interesting thing
