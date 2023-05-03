@@ -1,6 +1,8 @@
 import type { ActionArgs, V2_MetaFunction } from '@remix-run/node';
 import { redirect } from '@remix-run/node';
-import { Form } from '@remix-run/react';
+import { useFetcher } from '@remix-run/react';
+import { format } from 'date-fns';
+import { useEffect, useRef } from 'react';
 import { db } from '~/utils/db.server';
 
 export const meta: V2_MetaFunction = () => {
@@ -10,6 +12,10 @@ export const meta: V2_MetaFunction = () => {
 export async function action({ request }: ActionArgs) {
   const formData = await request.formData();
   const { date, type, text } = Object.fromEntries(formData);
+
+  // await a set number of seconds to simulate a slow network
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+
   if (
     typeof date !== 'string' ||
     typeof type !== 'string' ||
@@ -17,17 +23,26 @@ export async function action({ request }: ActionArgs) {
   ) {
     throw new Response('Invalid form data', { status: 400 });
   }
-  await db.entry.create({
+  return db.entry.create({
     data: {
       date: new Date(date),
       type: type,
       text: text,
     },
   });
-  return redirect('/');
 }
 
 export default function Index() {
+  const fetcher = useFetcher();
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (fetcher.state === 'idle' && textAreaRef.current) {
+      textAreaRef.current.value = '';
+      textAreaRef.current.focus();
+    }
+  }, [fetcher.state]);
+
   return (
     <div className="p-10">
       <h1 className="text-5xl">Work Journal</h1>
@@ -36,62 +51,74 @@ export default function Index() {
       </p>
 
       <div className="my-8 border p-2">
-        <Form method="post">
-          <p className="italic">Create an entry</p>
+        <p className="italic">Create an entry</p>
 
-          <div>
-            <div className="mt-4">
-              <input type="date" name="date" className="text-gray-700" />
-            </div>
-
-            <div className="mt-2 space-x-6">
-              <label>
+        <fetcher.Form method="post" className="mt-2">
+          <fieldset
+            className="disabled:opacity-70"
+            disabled={fetcher.state === 'submitting'}
+          >
+            <div>
+              <div>
                 <input
-                  className="mr-1 "
-                  type="radio"
-                  name="type"
-                  value="work"
+                  type="date"
+                  name="date"
+                  required
+                  className="text-gray-900"
+                  defaultValue={format(new Date(), 'yyyy-MM-dd')}
                 />
-                Work
-              </label>
-              <label>
-                <input
-                  className="mr-1 "
-                  type="radio"
-                  name="type"
-                  value="learning"
+              </div>
+              <div className="mt-4 space-x-4">
+                <label>
+                  <input
+                    required
+                    defaultChecked
+                    className="mr-1 "
+                    type="radio"
+                    name="type"
+                    value="work"
+                  />
+                  Work
+                </label>
+                <label>
+                  <input
+                    className="mr-1 "
+                    type="radio"
+                    name="type"
+                    value="learning"
+                  />
+                  Learning
+                </label>
+                <label>
+                  <input
+                    className="mr-1 "
+                    type="radio"
+                    name="type"
+                    value="interesting-thing"
+                  />
+                  Interesting thing
+                </label>
+              </div>
+              <div className="mt-4">
+                <textarea
+                  ref={textAreaRef}
+                  name="text"
+                  className="w-full text-gray-700"
+                  placeholder="Write you entry..."
+                  required
                 />
-                Learning
-              </label>
-              <label>
-                <input
-                  className="mr-1 "
-                  type="radio"
-                  name="type"
-                  value="interesting-thing"
-                />
-                Interesting thing
-              </label>
+              </div>
+              <div className="mt-1 text-right">
+                <button
+                  className="bg-blue-500 px-4 py-1 font-medium text-white"
+                  type="submit"
+                >
+                  {fetcher.state === 'submitting' ? 'Saving...' : 'Save'}
+                </button>
+              </div>
             </div>
-
-            <div className="mt-2">
-              <textarea
-                name="text"
-                className="w-full text-gray-700"
-                placeholder="Write you entry..."
-              />
-            </div>
-
-            <div className="mt-1 text-right">
-              <button
-                className="bg-blue-500 px-4 py-1 font-medium text-white"
-                type="submit"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </Form>
+          </fieldset>
+        </fetcher.Form>
       </div>
 
       <div className="mt-4">
