@@ -1,7 +1,6 @@
 import type { ActionArgs, V2_MetaFunction } from '@remix-run/node';
-import { redirect } from '@remix-run/node';
 import { useFetcher, useLoaderData } from '@remix-run/react';
-import { format } from 'date-fns';
+import { format, parseISO, startOfWeek } from 'date-fns';
 import { useEffect, useRef } from 'react';
 import { db } from '~/utils/db.server';
 
@@ -36,13 +35,32 @@ export async function loader() {
   const entries = await db.entry.findMany({
     orderBy: { date: 'desc' },
   });
-  return entries;
+
+  const entriesByWeek = entries.reduce<
+    Record<string, Record<string, typeof entries>>
+  >((acc, entry) => {
+    const entryDateUTC = parseISO(entry.date.toISOString().substring(0, 10));
+    const sunday = format(startOfWeek(entryDateUTC), 'yyyy-MM-dd');
+    acc[sunday] ||= {};
+    acc[sunday][entry.type] ||= [];
+    acc[sunday][entry.type].push(entry);
+    return acc;
+  }, {});
+
+  return Object.entries(entriesByWeek).map(([dateString, entries]) => {
+    return {
+      dateString,
+      work: entries['work'] || [],
+      learnings: entries['learning'] || [],
+      interestingThings: entries['interesting-thing'] || [],
+    };
+  });
 }
 
 export default function Index() {
   const fetcher = useFetcher();
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
-  const entries = useLoaderData<typeof loader>();
+  const weeks = useLoaderData<typeof loader>();
 
   useEffect(() => {
     if (fetcher.state === 'idle' && textAreaRef.current) {
@@ -61,7 +79,6 @@ export default function Index() {
       {/* FORM */}
       <div className="my-8 border p-2">
         <p className="italic">Create an entry</p>
-
         <fetcher.Form method="post" className="mt-2">
           <fieldset
             className="disabled:opacity-70"
@@ -130,40 +147,48 @@ export default function Index() {
         </fetcher.Form>
       </div>
 
-      {entries.map((entry) => (
-        <p key={entry.id}>{entry.text}</p>
-      ))}
-
       {/* ENTRIES */}
-      {/* <div className="mt-4">
-        <p className="font-bold">
-          Week of May 1<sup>st</sup>
-        </p>
-
-        <div className="mt-3 space-y-4">
-          <div>
-            <p>Work</p>
-            <ul className="ml-8 list-disc">
-              <li>First item</li>
-              <li>Second item</li>
-            </ul>
+      <div className="mt-12 space-y-12">
+        {weeks.map((week) => (
+          <div key={week.dateString}>
+            <p className="font-bold">
+              Week of {format(parseISO(week.dateString), 'MMMM do')}
+            </p>
+            <div className="mt-3 space-y-4">
+              {week.work.length > 0 && (
+                <div>
+                  <p>Work</p>
+                  <ul className="ml-8 list-disc">
+                    {week.work.map((entry) => (
+                      <li key={entry.id}>{entry.text}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {week.learnings.length > 0 && (
+                <div>
+                  <p>Learnings</p>
+                  <ul className="ml-8 list-disc">
+                    {week.learnings.map((entry) => (
+                      <li key={entry.id}>{entry.text}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {week.interestingThings.length > 0 && (
+                <div>
+                  <p>Interesting things</p>
+                  <ul className="ml-8 list-disc">
+                    {week.interestingThings.map((entry) => (
+                      <li key={entry.id}>{entry.text}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           </div>
-          <div>
-            <p>Learnings</p>
-            <ul className="ml-8 list-disc">
-              <li>First item</li>
-              <li>Second item</li>
-            </ul>
-          </div>
-          <div>
-            <p>Interesting things</p>
-            <ul className="ml-8 list-disc">
-              <li>First item</li>
-              <li>Second item</li>
-            </ul>
-          </div>
-        </div>
-      </div> */}
+        ))}
+      </div>
     </div>
   );
 }
