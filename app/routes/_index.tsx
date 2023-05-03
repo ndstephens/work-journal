@@ -1,6 +1,6 @@
 import type { ActionArgs, V2_MetaFunction } from '@remix-run/node';
 import { redirect } from '@remix-run/node';
-import { useFetcher } from '@remix-run/react';
+import { useFetcher, useLoaderData } from '@remix-run/react';
 import { format } from 'date-fns';
 import { useEffect, useRef } from 'react';
 import { db } from '~/utils/db.server';
@@ -32,9 +32,17 @@ export async function action({ request }: ActionArgs) {
   });
 }
 
+export async function loader() {
+  const entries = await db.entry.findMany({
+    orderBy: { date: 'desc' },
+  });
+  return entries;
+}
+
 export default function Index() {
   const fetcher = useFetcher();
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const entries = useLoaderData<typeof loader>();
 
   useEffect(() => {
     if (fetcher.state === 'idle' && textAreaRef.current) {
@@ -50,6 +58,7 @@ export default function Index() {
         Learnings and doings. Updated weekly
       </p>
 
+      {/* FORM */}
       <div className="my-8 border p-2">
         <p className="italic">Create an entry</p>
 
@@ -121,7 +130,12 @@ export default function Index() {
         </fetcher.Form>
       </div>
 
-      <div className="mt-4">
+      {entries.map((entry) => (
+        <p key={entry.id}>{entry.text}</p>
+      ))}
+
+      {/* ENTRIES */}
+      {/* <div className="mt-4">
         <p className="font-bold">
           Week of May 1<sup>st</sup>
         </p>
@@ -149,7 +163,7 @@ export default function Index() {
             </ul>
           </div>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 }
